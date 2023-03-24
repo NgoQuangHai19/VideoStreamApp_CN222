@@ -89,7 +89,7 @@ class ServerWorker:
 		# Process PAUSE request
 		elif requestType == self.PAUSE:
 			if self.state == self.PLAYING:
-				print ("PROCESSING P A U S E\n")
+				print ("PROCESSING PAUSE\n")
 				self.state = self.READY
 				
 				self.clientInfo['event'].set()
