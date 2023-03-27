@@ -5,13 +5,15 @@ import tkinter.messagebox
 tkinter.messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
+import datetime
+import time
 
 from RtpPacket import RtpPacket
 
 CACHE_FILE_NAME = "cache-"
 CACHE_FILE_EXT = ".jpg"
 
-class Client:
+class Client2:
 
 	SETUP_STR = 'SETUP'
 	PLAY_STR = 'PLAY'
@@ -26,7 +28,12 @@ class Client:
 	PLAY = 1
 	PAUSE = 2
 	TEARDOWN = 3
-	
+
+	#checkSocketIsOpen=False
+	#checkPlay=False
+	#isFirstPlay=False
+	counter=0
+
 	RTSP_VER = "RTSP/1.0"
 	TRANSPORT = "RTP/UDP"
 	
@@ -47,6 +54,20 @@ class Client:
 		self.teardownAcked = 0
 		self.connectToServer()
 		self.frameNbr = 0
+
+		#static data
+
+		self.countTotalPacket = 0
+		self.timerBegin = 0
+		self.timerEnd = 0
+		self.timer=0
+		self.bytes = 0
+		self.packets = 0
+		self.packetsLost = 0
+		self.lastSequence = 0
+		self.totalJitter = 0
+		self.arrivalTimeofPreviousPacket = 0
+		self.lastPacketSpacing = 0
 		
 	def createWidgets(self):
 		"""Build GUI."""
@@ -86,8 +107,25 @@ class Client:
 	def exitClient(self):
 		"""Teardown button handler."""
 		self.sendRtspRequest(self.TEARDOWN)		
-		self.master.destroy() # Close the gui window
-		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		#self.master.destroy() # Close the gui window
+		#os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		for i in os.listdir():
+				if i.find(CACHE_FILE_NAME) == 0:
+					os.remove(i)
+		time.sleep(1)
+		self.state = self.INIT
+			# self.master.protocol("WM_DELETE_WINDOW", self.handler)
+		self.rtspSeq = 0
+		self.sessionId = 0
+		self.requestSent = -1
+		self.teardownAcked = 0
+		self.frameNbr = 0
+		self.counter = 0
+		#self.checkPlay = False
+		self.connectToServer()
+		self.rtpSocket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.label.pack_forget()
+		self.label.image = ''
 
 	def pauseMovie(self):
 		"""Pause button handler."""
@@ -113,20 +151,33 @@ class Client:
 					rtpPacket = RtpPacket()
 					rtpPacket.decode(data)
 					
+					if (self.frameNbr + 1 != rtpPacket.seqNum()):
+						self.counter += 1
+
 					currFrameNbr = rtpPacket.seqNum()
 					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
-										
+					self.bytes += len(rtpPacket.getPacket())				
+
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
+						#StaticUpdate
+						self.countTotalPacket += 1
+						self.packets += 1
+						self.packetsLost += currFrameNbr - self.lastSequence - 1
+						
+					self.lastSequence=currFrameNbr
+			
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
 				if self.playEvent.isSet(): 
+					self.displayStatics()
 					break
 				
 				# Upon receiving ACK for TEARDOWN request,
 				# close the RTP socket
 				if self.teardownAcked == 1:
+					self.displayStatics()
 					self.rtpSocket.shutdown(socket.SHUT_RDWR)
 					self.rtpSocket.close()
 					break
@@ -266,15 +317,24 @@ class Client:
 						self.openRtpPort() 
 					elif self.requestSent == self.PLAY:
 						self.state = self.PLAYING
+						if self.timerBegin == 0:
+							self.timerBegin = time.perf_counter()
+			
 					elif self.requestSent == self.PAUSE:
 						self.state = self.READY
-                        
+						
+						if self.timerBegin > 0:
+							self.timerEnd = time.perf_counter()
+							self.timer += self.timerEnd - self.timerBegin
+							self.timerBegin = 0
 						
 						# The play thread exits. A new thread is created on resume.
 						self.playEvent.set()
 					elif self.requestSent == self.TEARDOWN:
 						self.state = self.INIT
-						
+
+						self.timerEnd = time.perf_counter()
+						self.timer += self.timerEnd - self.timerBegin
 						# Flag the teardownAcked to close the socket.
 						self.teardownAcked = 1 
 	
@@ -304,6 +364,24 @@ class Client:
 		"""Handler on explicitly closing the GUI window."""
 		self.pauseMovie()
 		if messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
+			##self.sendRtspRequest(self.TEARDOWN)
 			self.exitClient()
+			self.rtpSocket.shutdown(socket.SHUT_RDWR)
+			self.rtpSocket.close()
+			self.master.destroy()
 		else: # When the user presses cancel, resume playing.
 			self.playMovie()
+
+	def displayStatics(self):
+		totalPacket = ((self.counter) / (self.countTotalPacket)) * 100
+		top1 = Toplevel()
+		top1.title("Statistics")
+		top1.geometry('300x170')
+		Lb2 = Listbox(top1, width=80, height=20)
+		Lb2.insert(1, "Current Packets No.%d " % self.frameNbr)
+		Lb2.insert(2, "Total Streaming Packets: %d packets" % self.countTotalPacket)
+		Lb2.insert(3, "Packets Received: %d packets" % self.packets)
+		Lb2.insert(4, "Packets Lost: %d packets" % self.counter)
+		Lb2.insert(5, "Packet Loss Rate: %d%%" % totalPacket)
+		Lb2.insert(8, "Video Data Rate: %d bytes per second" % (self.bytes / self.timer))
+		Lb2.pack()
