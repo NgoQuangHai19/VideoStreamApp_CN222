@@ -1,8 +1,6 @@
 from tkinter import *
 import tkinter.messagebox
 tkinter.messagebox
-import tkinter.messagebox
-tkinter.messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 import datetime
@@ -19,6 +17,8 @@ class Client2:
 	PLAY_STR = 'PLAY'
 	PAUSE_STR = 'PAUSE'
 	TEARDOWN_STR = 'TEARDOWN'
+	FORWARD_STR = 'FORWARD'
+	BACKWARD_STR = 'BACKWARD'
 	INIT = 0
 	READY = 1
 	PLAYING = 2
@@ -28,6 +28,8 @@ class Client2:
 	PLAY = 1
 	PAUSE = 2
 	TEARDOWN = 3
+	FORWARD = 5
+	BACKWARD = 6
 
 	#checkSocketIsOpen=False
 	#checkPlay=False
@@ -50,10 +52,12 @@ class Client2:
 		self.fileName = filename
 		self.rtspSeq = 0
 		self.sessionId = 0
-		self.requestSent = -1
+		self.requestSent = -1 
 		self.teardownAcked = 0
 		self.connectToServer()
 		self.frameNbr = 0
+		self.totalTime=0
+		self.currentTime = 0
 
 		#static data
 
@@ -69,36 +73,73 @@ class Client2:
 		self.arrivalTimeofPreviousPacket = 0
 		self.lastPacketSpacing = 0
 		
+		
 	def createWidgets(self):
 		"""Build GUI."""
-		# Create Setup button
+        # Create Setup button
 		self.setup = Button(self.master, width=20, padx=3, pady=3)
 		self.setup["text"] = "Setup"
+		self.setup["bg"] = "#ffc107"
 		self.setup["command"] = self.setupMovie
-		self.setup.grid(row=1, column=0, padx=2, pady=2)
-		
-		# Create Play button		
+		self.setup.grid(row=2, column=0, padx=2, pady=2)
+        
+        # Create Play button		
 		self.start = Button(self.master, width=20, padx=3, pady=3)
-		self.start["text"] = "Play"
+		self.start["text"] = "▷"
+		self.start["bg"] = "#ffc107"
 		self.start["command"] = self.playMovie
-		self.start.grid(row=1, column=1, padx=2, pady=2)
-		
-		# Create Pause button			
+		self.start.grid(row=2, column=1, padx=2, pady=2)
+        
+        # Create Pause button			
 		self.pause = Button(self.master, width=20, padx=3, pady=3)
-		self.pause["text"] = "Pause"
+		self.pause["text"] = "▐ ▌"
+		self.pause["bg"] = "#ffc107"
 		self.pause["command"] = self.pauseMovie
-		self.pause.grid(row=1, column=2, padx=2, pady=2)
-		
-		# Create Teardown button
+		self.pause.grid(row=2, column=2, padx=2, pady=2)
+        
+        # Create Teardown button
 		self.teardown = Button(self.master, width=20, padx=3, pady=3)
-		self.teardown["text"] = "Teardown"
+		self.teardown["text"] = "↺"
+		self.teardown["bg"] = "#ffc107"
 		self.teardown["command"] =  self.exitClient
-		self.teardown.grid(row=1, column=3, padx=2, pady=2)
-		
-		# Create a label to display the movie
+		self.teardown.grid(row=2, column=3, padx=2, pady=2)
+        
+        # Create Describe button
+		self.describe = Button(self.master, width=20, padx=3, pady=3)
+		self.describe["text"] = "Describe ♬"
+		self.describe["bg"] = "#ffc107"
+		self.describe["command"] = self.describeMovie
+		self.describe.grid(row=2, column=4, padx=2, pady=2)
+
+        # Create a label to display the movie
 		self.label = Label(self.master, height=19)
-		self.label.grid(row=0, column=0, columnspan=4, sticky=W+E+N+S, padx=5, pady=5) 
-	
+		self.label.grid(row=0, column=0, columnspan=5, sticky=W+E+N+S, padx=5, pady=5) 
+
+        # Create a label to display total time of the movie
+		self.totaltimeBox = Label(self.master, width=20, text="Total time: 00:00", bg= "#4CAF50")
+		self.totaltimeBox.grid(row=1, column=4, columnspan=1, padx=5, pady=5)
+        
+		#Create a lable to display remaining time of the movie  
+		self.remainTimeBox = Label(self.master, width=20, text="Remaining time: 00:00", bg="#4CAF50")
+		self.remainTimeBox.grid(row=1, column=0, columnspan=1, padx=5, pady=5)
+
+        # Create forward button
+		self.forward = Button(self.master, width=20, padx=3, pady=3)
+		self.forward["text"] = "▷▷"
+		self.forward["bg"] = "#ffc107"
+		self.forward["command"] = self.forwardMovie
+		self.forward["state"] = "disabled"
+		self.forward.grid(row=1, column=3, padx=2, pady=2)
+
+        # Create backward button
+		self.backward = Button(self.master, width=20, padx=3, pady=3)
+		self.backward["text"] = "◁◁"
+		self.backward["bg"] = "#ffc107"
+		self.backward["command"] = self.backwardMovie
+		self.backward["state"] = "disabled"
+		self.backward.grid(row=1, column=1, padx=2, pady=2)
+
+
 	def setupMovie(self):
 		"""Setup button handler."""
 		if self.state == self.INIT:
@@ -114,13 +155,18 @@ class Client2:
 					os.remove(i)
 		time.sleep(1)
 		self.state = self.INIT
-			# self.master.protocol("WM_DELETE_WINDOW", self.handler)
+		# self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.rtspSeq = 0
+		self.currentTime = 0
 		self.sessionId = 0
 		self.requestSent = -1
 		self.teardownAcked = 0
 		self.frameNbr = 0
 		self.counter = 0
+		self.countTotalPacket=0
+		self.packets=0
+		self.forward["state"] = "disabled"
+		self.backward["state"] = "disabled"
 		#self.checkPlay = False
 		self.connectToServer()
 		self.rtpSocket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -140,7 +186,22 @@ class Client2:
 			self.playEvent = threading.Event()
 			self.playEvent.clear()
 			self.sendRtspRequest(self.PLAY)
+			self.forward["state"] = "normal"
+			self.backward["state"] = "normal"
 	
+	def forwardMovie(self):
+		"""Forward button handler."""
+		self.sendRtspRequest(self.FORWARD)
+
+
+	def backwardMovie(self):
+		"""Backward button handler"""
+		self.sendRtspRequest(self.BACKWARD)
+
+	def describeMovie(self):
+		"""Describe button handler. """
+	#TODO
+
 	def listenRtp(self):		
 		"""Listen for RTP packets."""
 		while True:
@@ -156,7 +217,12 @@ class Client2:
 
 					currFrameNbr = rtpPacket.seqNum()
 					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
-					self.bytes += len(rtpPacket.getPacket())				
+					self.bytes += len(rtpPacket.getPacket())	
+					self.currentTime = int(currFrameNbr * 0.05)
+					
+					# Update remaining time
+					self.totaltimeBox.configure(text="Total time: %02d:%02d" % (self.totalTime // 60, self.totalTime % 60))
+					self.remainTimeBox.configure(text="Remaining time: %02d:%02d" % ((self.totalTime - self.currentTime)// 60, (self.totalTime - self.currentTime) % 60))			
 
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
@@ -207,69 +273,66 @@ class Client2:
 	
 	def sendRtspRequest(self, requestCode):
 		"""Send RTSP request to the server."""	
-		#-------------
-		# TO COMPLETE
-		#-------------
-		
 		# Setup request
 		if requestCode == self.SETUP and self.state == self.INIT:
-			threading.Thread(target=self.recvRtspReply).start()
-                
+			threading.Thread(target=self.recvRtspReply).start()       
 			# Update RTSP sequence number.
-			self.rtspSeq+=1
-			
-			# Write the RTSP request to be sent.
-			request = "%s %s %s" % (self.SETUP_STR,self.fileName,self.RTSP_VER)
-			request+="\nCSeq: %d" % self.rtspSeq
-			request+="\nTransport: %s; client_port= %d" % (self.TRANSPORT,self.rtpPort)
-			
+			self.rtspSeq+=1	
+			# Viet RTSP request
+			request = "%s %s %s" % (self.SETUP_STR,self.fileName,self.RTSP_VER)+"\nCSeq: %d" % self.rtspSeq+"\nTransport: %s; client_port= %d" % (self.TRANSPORT,self.rtpPort)	
 			# Keep track of the sent request.
 			self.requestSent = self.SETUP
 			
 			# Play request
 		elif requestCode == self.PLAY and self.state == self.READY:
-        
 			# Update RTSP sequence number.
 			self.rtspSeq+=1
-        
-			# Write the RTSP request to be sent.
-			request = "%s %s %s" % (self.PLAY_STR,self.fileName,self.RTSP_VER)
-			request+="\nCSeq: %d" % self.rtspSeq
-			request+="\nSession: %d"%self.sessionId
-                
-			
+			# Viet RTSP request
+			request = "%s %s %s" % (self.PLAY_STR,self.fileName,self.RTSP_VER) +"\nCSeq: %d" % self.rtspSeq+"\nSession: %d"%self.sessionId            	
 			# Keep track of the sent request.
 			self.requestSent = self.PLAY
-            
-            
+                  
             # Pause request
 		elif requestCode == self.PAUSE and self.state == self.PLAYING:
-        
 			# Update RTSP sequence number.
-			self.rtspSeq+=1
-			
-			request = "%s %s %s" % (self.PAUSE_STR,self.fileName,self.RTSP_VER)
-			request+="\nCSeq: %d" % self.rtspSeq
-			request+="\nSession: %d"%self.sessionId
-			
+			self.rtspSeq+=1	
+			# Viet RTSP request
+			request = "%s %s %s" % (self.PAUSE_STR,self.fileName,self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d"%self.sessionId		
+			# Keep track of the sent request.
 			self.requestSent = self.PAUSE
 			
 			# Teardown request
 		elif requestCode == self.TEARDOWN and not self.state == self.INIT:
-        
 			# Update RTSP sequence number.
 			self.rtspSeq+=1
-			
-			# Write the RTSP request to be sent.
-			request = "%s %s %s" % (self.TEARDOWN_STR, self.fileName, self.RTSP_VER)
-			request+="\nCSeq: %d" % self.rtspSeq
-			request+="\nSession: %d" % self.sessionId
-			
+			# Viet RTSP request
+			request = "%s %s %s" % (self.TEARDOWN_STR, self.fileName, self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d" % self.sessionId	
+			# Keep track of the sent request.
 			self.requestSent = self.TEARDOWN
 
-		else:
-			return
+		elif requestCode == self.FORWARD and not self.state == self.INIT:
+			# Update RTSP sequence number.
+			self.rtspSeq = self.rtspSeq + 1
+			# Viet RTSP request
+			request = "%s %s %s" % (self.FORWARD_STR, self.fileName, self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d" % self.sessionId
+			# Keep track of the sent request.
+			self.requestSent = self.FORWARD
 		
+		elif requestCode == self.BACKWARD:
+            # Update RTSP sequence number.
+			# Neu so luong frame truoc do khong duoc 10%, thi tra ve frame dau tien
+			if self.rtspSeq <= 50:
+				self.rtspSeq = 0
+			else:
+				self.rtspSeq = self.rtspSeq - 50
+            #Viet RTSP request
+			request = "%s %s %s" % (self.BACKWARD_STR, self.fileName, self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d" % self.sessionId
+            # Keep track of the sent request.
+			self.requestSent = self.BACKWARD
+
+
+		else:
+			return	
 		# Send the RTSP request using rtspSocket.
 		self.rtspSocket.send(request.encode())
 		
@@ -299,20 +362,15 @@ class Client2:
 			session = int(lines[2].split(' ')[1])
 			# New RTSP session ID
 			if self.sessionId == 0:
-				self.sessionId = session
-			
+				self.sessionId = session		
 			# Process only if the session ID is the same
 			if self.sessionId == session:
 				if int(lines[0].split(' ')[1]) == 200: 
 					if self.requestSent == self.SETUP:
-						#-------------
-						# TO COMPLETE
-						#-------------
-                        
-                        
 						# Update RTSP state.
 						self.state = self.READY
-						
+						self.totalTime = float(lines[3].split(' ')[1])
+						#print("Total time: ", lines)
 						# Open RTP port.
 						self.openRtpPort() 
 					elif self.requestSent == self.PLAY:
@@ -321,15 +379,13 @@ class Client2:
 							self.timerBegin = time.perf_counter()
 			
 					elif self.requestSent == self.PAUSE:
-						self.state = self.READY
-						
+						self.state = self.READY					
 						if self.timerBegin > 0:
 							self.timerEnd = time.perf_counter()
 							self.timer += self.timerEnd - self.timerBegin
-							self.timerBegin = 0
-						
-						# The play thread exits. A new thread is created on resume.
+							self.timerBegin = 0						
 						self.playEvent.set()
+
 					elif self.requestSent == self.TEARDOWN:
 						self.state = self.INIT
 
@@ -340,19 +396,11 @@ class Client2:
 	
 	def openRtpPort(self):
 		"""Open RTP socket binded to a specified port."""
-    
-		#-------------
-		# TO COMPLETE
-		#-------------
-        
-        
 		# Create a new datagram socket to receive RTP packets from the server
 		self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            
-		
+
 		# Set the timeout value of the socket to 0.5sec
 		self.rtpSocket.settimeout(0.5)
-		
 		try:
 			# Bind the socket to the address using the RTP port given by the client user.
 			self.state=self.READY
@@ -385,3 +433,6 @@ class Client2:
 		Lb2.insert(5, "Packet Loss Rate: %d%%" % totalPacket)
 		Lb2.insert(8, "Video Data Rate: %d bytes per second" % (self.bytes / self.timer))
 		Lb2.pack()
+
+
+	
