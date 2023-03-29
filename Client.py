@@ -1,8 +1,5 @@
 from tkinter import *
 import tkinter.messagebox
-tkinter.messagebox
-import tkinter.messagebox
-tkinter.messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 
@@ -152,7 +149,7 @@ class Client:
 		try:
 			self.rtspSocket.connect((self.serverAddr, self.serverPort))
 		except:
-			messagebox.showwarning('Connection Failed', 'Connection to \'%s\' failed.' %self.serverAddr)
+			tkinter.messagebox.showwarning('Connection Failed', 'Connection to \'%s\' failed.' %self.serverAddr)
 	
 	def sendRtspRequest(self, requestCode):
 		"""Send RTSP request to the server."""	
@@ -298,12 +295,12 @@ class Client:
 			self.state=self.READY
 			self.rtpSocket.bind(('',self.rtpPort))
 		except:
-			messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
+			tkinter.messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
 
 	def handler(self):
 		"""Handler on explicitly closing the GUI window."""
 		self.pauseMovie()
-		if messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
+		if tkinter.messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
 			self.exitClient()
 		else: # When the user presses cancel, resume playing.
 			self.playMovie()
