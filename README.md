@@ -4,3 +4,4 @@ Will update it soon.
 
 1) python Server.py 1300
 2) python ClientLauncher.py 127.0.0.1 1300 5008 movie.Mjpeg
+3) python ClientLauncher.py 127.0.0.1 1300 5008 bestmusic.mjpeg

@@ -9,6 +9,26 @@ class VideoStream:
 		self.isNext = 0
 		self.totalFrame = 0
 
+		print('frame = 0')
+
+	def get_total_time_video(self):
+		self.totalFrame=0
+		while True:
+			data = self.file.read(5)
+			if data:
+				framelength = int(data)
+				# Read the current frame
+				data = self.file.read(framelength)
+				self.totalFrame += 1
+			else:
+				self.file.seek(0)
+				break
+			totalTime = self.totalFrame * 0.05
+		return totalTime
+
+	def setIsNext(self):
+		self.isNext = 1
+
 	def nextFrame(self):
 		"""Get next frame."""
 		if self.isNext == 1:
@@ -30,7 +50,7 @@ class VideoStream:
 					data = self.file.read(framelength)
 					self.frameNum += 1
 			return data
-	
+
 	def prevFrame(self):
 		preFrames = int(self.totalFrame * 0.1)
 		if self.frameNum <= preFrames:
@@ -49,26 +69,7 @@ class VideoStream:
 				data = self.nextFrame()
 
 		return data
-	
+
 	def frameNbr(self):
 		"""Get frame number."""
 		return self.frameNum
-	
-	def get_total_time_video(self):
-		self.totalFrame=0
-		while True:
-			data = self.file.read(5)
-			if data:
-				framelength = int(data)
-				# Read the current frame
-				data = self.file.read(framelength)
-				self.totalFrame += 1
-			else:
-				self.file.seek(0)
-				break
-			totalTime = self.totalFrame * 0.05
-		return totalTime
-	
-	def setIsNext(self):
-		self.isNext = 1
-		#print("Check isNEXT ",self.isNext)

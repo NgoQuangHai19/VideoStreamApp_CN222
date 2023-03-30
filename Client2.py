@@ -1,6 +1,5 @@
 from tkinter import *
 import tkinter.messagebox
-tkinter.messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 import datetime
@@ -28,6 +27,7 @@ class Client2:
 	PLAY = 1
 	PAUSE = 2
 	TEARDOWN = 3
+	DESCRIBE = 4
 	FORWARD = 5
 	BACKWARD = 6
 
@@ -69,9 +69,6 @@ class Client2:
 		self.packets = 0
 		self.packetsLost = 0
 		self.lastSequence = 0
-		self.totalJitter = 0
-		self.arrivalTimeofPreviousPacket = 0
-		self.lastPacketSpacing = 0
 		
 		
 	def createWidgets(self):
@@ -85,21 +82,21 @@ class Client2:
         
         # Create Play button		
 		self.start = Button(self.master, width=20, padx=3, pady=3)
-		self.start["text"] = "▷"
+		self.start["text"] = "Play ▷"
 		self.start["bg"] = "#ffc107"
 		self.start["command"] = self.playMovie
 		self.start.grid(row=2, column=1, padx=2, pady=2)
         
         # Create Pause button			
 		self.pause = Button(self.master, width=20, padx=3, pady=3)
-		self.pause["text"] = "▐ ▌"
+		self.pause["text"] = "Pause ▐ ▌"
 		self.pause["bg"] = "#ffc107"
 		self.pause["command"] = self.pauseMovie
 		self.pause.grid(row=2, column=2, padx=2, pady=2)
         
         # Create Teardown button
 		self.teardown = Button(self.master, width=20, padx=3, pady=3)
-		self.teardown["text"] = "↺"
+		self.teardown["text"] = "Teardown ↺"
 		self.teardown["bg"] = "#ffc107"
 		self.teardown["command"] =  self.exitClient
 		self.teardown.grid(row=2, column=3, padx=2, pady=2)
@@ -109,6 +106,7 @@ class Client2:
 		self.describe["text"] = "Describe ♬"
 		self.describe["bg"] = "#ffc107"
 		self.describe["command"] = self.describeMovie
+		self.describe["state"] = "disabled"
 		self.describe.grid(row=2, column=4, padx=2, pady=2)
 
         # Create a label to display the movie
@@ -176,6 +174,8 @@ class Client2:
 	def pauseMovie(self):
 		"""Pause button handler."""
 		if self.state == self.PLAYING:
+			self.forward["state"]= "disabled"
+			self.backward["state"] = "disabled"
 			self.sendRtspRequest(self.PAUSE)
 	
 	def playMovie(self):
@@ -188,6 +188,7 @@ class Client2:
 			self.sendRtspRequest(self.PLAY)
 			self.forward["state"] = "normal"
 			self.backward["state"] = "normal"
+			self.describe["state"] = "normal"
 	
 	def forwardMovie(self):
 		"""Forward button handler."""
@@ -197,10 +198,14 @@ class Client2:
 	def backwardMovie(self):
 		"""Backward button handler"""
 		self.sendRtspRequest(self.BACKWARD)
+		if self.frameNbr <= 50:
+			self.frameNbr = 0
+		else:
+			self.frameNbr -= 50
 
 	def describeMovie(self):
 		"""Describe button handler. """
-	#TODO
+		self.sendRtspRequest(self.DESCRIBE)
 
 	def listenRtp(self):		
 		"""Listen for RTP packets."""
@@ -244,8 +249,12 @@ class Client2:
 				# close the RTP socket
 				if self.teardownAcked == 1:
 					self.displayStatics()
-					self.rtpSocket.shutdown(socket.SHUT_RDWR)
-					self.rtpSocket.close()
+					self.checkSocketIsOpen = False
+					try:
+						self.rtpSocket.shutdown(socket.SHUT_RDWR)
+						self.rtpSocket.close()
+					except:
+						pass
 					break
 					
 	def writeFrame(self, data):
@@ -265,11 +274,12 @@ class Client2:
 		
 	def connectToServer(self):
 		"""Connect to the Server. Start a new RTSP/TCP session."""
+		self.checkSocketIsOpen = True
 		self.rtspSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
 			self.rtspSocket.connect((self.serverAddr, self.serverPort))
 		except:
-			messagebox.showwarning('Connection Failed', 'Connection to \'%s\' failed.' %self.serverAddr)
+			tkinter.messagebox.showwarning('Connection Failed', 'Connection to \'%s\' failed.' %self.serverAddr)
 	
 	def sendRtspRequest(self, requestCode):
 		"""Send RTSP request to the server."""	
@@ -279,7 +289,7 @@ class Client2:
 			# Update RTSP sequence number.
 			self.rtspSeq+=1	
 			# Viet RTSP request
-			request = "%s %s %s" % (self.SETUP_STR,self.fileName,self.RTSP_VER)+"\nCSeq: %d" % self.rtspSeq+"\nTransport: %s; client_port= %d" % (self.TRANSPORT,self.rtpPort)	
+			request = f"SETUP {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nTRANSPORT: RTP/UDP; Client_port= {self.rtpPort}"
 			# Keep track of the sent request.
 			self.requestSent = self.SETUP
 			
@@ -288,7 +298,7 @@ class Client2:
 			# Update RTSP sequence number.
 			self.rtspSeq+=1
 			# Viet RTSP request
-			request = "%s %s %s" % (self.PLAY_STR,self.fileName,self.RTSP_VER) +"\nCSeq: %d" % self.rtspSeq+"\nSession: %d"%self.sessionId            	
+			request = f"PLAY {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSESSION: {self.sessionId}"
 			# Keep track of the sent request.
 			self.requestSent = self.PLAY
                   
@@ -297,7 +307,7 @@ class Client2:
 			# Update RTSP sequence number.
 			self.rtspSeq+=1	
 			# Viet RTSP request
-			request = "%s %s %s" % (self.PAUSE_STR,self.fileName,self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d"%self.sessionId		
+			request = f"PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSESSION: {self.sessionId}"
 			# Keep track of the sent request.
 			self.requestSent = self.PAUSE
 			
@@ -306,9 +316,14 @@ class Client2:
 			# Update RTSP sequence number.
 			self.rtspSeq+=1
 			# Viet RTSP request
-			request = "%s %s %s" % (self.TEARDOWN_STR, self.fileName, self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d" % self.sessionId	
+			request = f"TEARDOWN {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSESSION: {self.sessionId}"
 			# Keep track of the sent request.
 			self.requestSent = self.TEARDOWN
+
+		elif requestCode == self.DESCRIBE:
+			self.rtspSeq += 1
+			request = f"DESCRIBE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSESSION: {self.sessionId}"
+			self.requestSent = self.DESCRIBE
 
 		elif requestCode == self.FORWARD and not self.state == self.INIT:
 			# Update RTSP sequence number.
@@ -334,7 +349,7 @@ class Client2:
 		else:
 			return	
 		# Send the RTSP request using rtspSocket.
-		self.rtspSocket.send(request.encode())
+		self.rtspSocket.send(str(request).encode())
 		
 		print ('\nData Sent:\n' + request)
 	
@@ -344,7 +359,7 @@ class Client2:
 			reply = self.rtspSocket.recv(1024)
 			
 			if reply: 
-				self.parseRtspReply(reply)
+				self.parseRtspReply(reply.decode())
 			
 			# Close the RTSP socket upon requesting Teardown
 			if self.requestSent == self.TEARDOWN:
@@ -354,7 +369,7 @@ class Client2:
 	
 	def parseRtspReply(self, data):
 		"""Parse the RTSP reply from the server."""
-		lines = data.decode().split('\n')
+		lines = data.split('\n')
 		seqNum = int(lines[1].split(' ')[1])
 		
 		# Process only if the server reply's sequence number is the same as the request's
@@ -393,6 +408,9 @@ class Client2:
 						self.timer += self.timerEnd - self.timerBegin
 						# Flag the teardownAcked to close the socket.
 						self.teardownAcked = 1 
+					elif self.requestSent == self.DESCRIBE:
+                        # self.state = ...
+						self.displayDescription(lines)			
 	
 	def openRtpPort(self):
 		"""Open RTP socket binded to a specified port."""
@@ -406,12 +424,12 @@ class Client2:
 			self.state=self.READY
 			self.rtpSocket.bind(('',self.rtpPort))
 		except:
-			messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
+			tkinter.messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
 
 	def handler(self):
 		"""Handler on explicitly closing the GUI window."""
 		self.pauseMovie()
-		if messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
+		if tkinter.messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
 			##self.sendRtspRequest(self.TEARDOWN)
 			self.exitClient()
 			self.rtpSocket.shutdown(socket.SHUT_RDWR)
@@ -434,5 +452,22 @@ class Client2:
 		Lb2.insert(8, "Video Data Rate: %d bytes per second" % (self.bytes / self.timer))
 		Lb2.pack()
 
+	def displayDescription(self, lines):
+		top = Toplevel()
+		top.title("Description")
+		top.geometry('300x180')
+		Lb1 = Listbox(top, width=50, height=30)
+		Lb1.insert(1, "Describe: ")
+		Lb1.insert(2, "Video name: " + str(self.fileName))
+		Lb1.insert(3, lines[1])
+		Lb1.insert(4, lines[2])
+		Lb1.insert(5, lines[3])
+		Lb1.insert(6, lines[4])
+		Lb1.insert(7, lines[5])
+		Lb1.insert(8, lines[6])
+		Lb1.insert(9, lines[7])
+		Lb1.insert(10, lines[8])
+		Lb1.insert(11, "Current time: " + "%02d:%02d" % (self.currentTime // 60, self.currentTime % 60))
+		Lb1.pack()
 
 	
