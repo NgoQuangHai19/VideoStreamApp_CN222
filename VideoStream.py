@@ -37,7 +37,6 @@ class VideoStream:
 			if forwardFrames > remainFrames:
 				forwardFrames = remainFrames
 			self.isNext = 0
-
 		else:
 			forwardFrames = 1
 		if forwardFrames:

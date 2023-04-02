@@ -151,7 +151,8 @@ class ServerWorker:
 					port = int(self.clientInfo['rtpPort'])
 					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber),(address,port))
 				except:
-					print("Connection Error")
+					print("Connection Error: Buffer overflow")
+				# 	print(e)
 
 	def makeRtp(self, payload, frameNbr):
 		"""RTP-packetize the video data."""
