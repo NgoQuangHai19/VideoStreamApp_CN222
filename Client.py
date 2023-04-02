@@ -44,6 +44,7 @@ class Client:
 	# Initiation..
 	def __init__(self, master, serveraddr, serverport, rtpport, filename):
 		self.master = master
+		self.state = self.INIT
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
 		self.serverAddr = serveraddr
@@ -56,9 +57,9 @@ class Client:
 		self.teardownAcked = 0
 		self.connectToServer()
 		self.frameNbr = 0
-		self.totalTime=0
+		self.counter = 0
+		self.totalTime = 0
 		self.currentTime = 0
-
 		#static data
 
 		self.countTotalPacket = 0
@@ -180,10 +181,11 @@ class Client:
 	
 	def playMovie(self):
 		"""Play button handler."""
-		self.setupMovie()
-		# Avoid race condition
-		while self.state != self.READY:
-			pass
+		if self.state == self.INIT:
+			self.setupMovie()
+			# Avoid race condition
+			while self.state != self.READY:
+				pass
 		if self.state == self.READY:
 			# Create a new thread to listen for RTP packets
 			threading.Thread(target=self.listenRtp).start()
@@ -193,8 +195,7 @@ class Client:
 			self.forward["state"] = "normal"
 			self.backward["state"] = "normal"
 			self.describe["state"] = "normal"
-		print('HERE')
-	
+
 	def forwardMovie(self):
 		"""Forward button handler."""
 		self.sendRtspRequest(self.FORWARD)

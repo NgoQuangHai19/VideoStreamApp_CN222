@@ -16,7 +16,7 @@ if __name__ == "__main__":
 	app = Client(root, serverAddr, serverPort, rtpPort, fileName)
 
 	#app = Client2(root, serverAddr, serverPort, rtpPort, fileName)
-	app.master.title("Super ultra vipro video streamming client")	
+	app.master.title("RTP Client")	
 	#app.master.configure(bg="#A5D2EB")
 	root.mainloop()
 	
