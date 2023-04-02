@@ -249,7 +249,7 @@ class Client2:
 				# close the RTP socket
 				if self.teardownAcked == 1:
 					self.displayStatics()
-					self.checkSocketIsOpen = False
+					#self.checkSocketIsOpen = False
 					try:
 						self.rtpSocket.shutdown(socket.SHUT_RDWR)
 						self.rtpSocket.close()
@@ -274,7 +274,7 @@ class Client2:
 		
 	def connectToServer(self):
 		"""Connect to the Server. Start a new RTSP/TCP session."""
-		self.checkSocketIsOpen = True
+		#self.checkSocketIsOpen = True
 		self.rtspSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
 			self.rtspSocket.connect((self.serverAddr, self.serverPort))
