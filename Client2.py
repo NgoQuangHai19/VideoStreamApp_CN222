@@ -59,6 +59,8 @@ class Client2:
 		self.counter = 0
 		self.totalTime = 0
 		self.currentTime = 0
+		self.isForward = 0
+		self.isBackward = 0
 		#static data
 
 		self.countTotalPacket = 0
@@ -162,6 +164,8 @@ class Client2:
 		self.counter = 0
 		self.countTotalPacket=0
 		self.packets=0
+		self.isForward = 0
+		self.isBackward = 0
 		self.forward["state"] = "disabled"
 		self.backward["state"] = "disabled"
 		#self.checkPlay = False
@@ -197,11 +201,13 @@ class Client2:
 	def forwardMovie(self):
 		"""Forward button handler."""
 		self.sendRtspRequest(self.FORWARD)
+		self.isForward = 1
 
 
 	def backwardMovie(self):
 		"""Backward button handler"""
 		self.sendRtspRequest(self.BACKWARD)
+		self.isBackward=1
 		if self.frameNbr <= 50:
 			self.frameNbr = 0
 		else:
@@ -221,7 +227,7 @@ class Client2:
 					rtpPacket = RtpPacket()
 					rtpPacket.decode(data)
 					
-					if (self.frameNbr + 1 != rtpPacket.seqNum()):
+					if (self.frameNbr + 1 != rtpPacket.seqNum()) & (not(self.isBackward | self.isForward)):
 						self.counter += 1
 
 					currFrameNbr = rtpPacket.seqNum()
@@ -452,7 +458,8 @@ class Client2:
 		Lb2.insert(3, "Packets Received: %d packets" % self.packets)
 		Lb2.insert(4, "Packets Lost: %d packets" % self.counter)
 		Lb2.insert(5, "Packet Loss Rate: %d%%" % totalPacket)
-		Lb2.insert(8, "Video Data Rate: %d bytes per second" % (self.bytes / self.timer))
+		Lb2.insert(6, "Play time: %.2f seconds" % self.timer)
+		Lb2.insert(7, "Video Data Rate: %d bytes per second" % (self.bytes / self.timer))
 		Lb2.pack()
 
 	def displayDescription(self, lines):
