@@ -345,10 +345,10 @@ class Client2:
 		elif requestCode == self.BACKWARD:
             # Update RTSP sequence number.
 			# Neu so luong frame truoc do khong duoc 10%, thi tra ve frame dau tien
-			if self.rtspSeq <= 50:
-				self.rtspSeq = 0
-			else:
-				self.rtspSeq = self.rtspSeq - 50
+			# if self.rtspSeq <= 50:
+			# 	self.rtspSeq = 0
+			# else:
+			# 	self.rtspSeq = self.rtspSeq - 50
             #Viet RTSP request
 			request = "%s %s %s" % (self.BACKWARD_STR, self.fileName, self.RTSP_VER) + "\nCSeq: %d" % self.rtspSeq + "\nSession: %d" % self.sessionId
             # Keep track of the sent request.
